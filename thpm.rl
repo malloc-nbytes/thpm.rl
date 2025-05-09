@@ -11,11 +11,18 @@ import "std/colors.rl"; as colors
 
 set_flag("-x");
 
+enum Flag_Type {
+    None = 1 << 0,
+    Yes = 1 << 1,
+}
+
 enum Config {
     Path = format(env("HOME"), "/.thpm"),
     Persist_Name = "__thpm__old_pkgs",
     Tmp_Pkg_Name = "__thpm_tmp_pkg",
 }
+
+let FLAGS = 0x00;
 
 fn log(msg, c) {
     println(c, msg, colors::Te.Reset);
@@ -279,7 +286,7 @@ fn show_installed_packages(config: dictionary, silent: bool): int {
     return num;
 }
 
-fn update(config: dictionary, forced_names: list) {
+@world fn update(config: dictionary, forced_names: list) {
     let paths = config["thpm_config"].unwrap()["package_paths"].unwrap();
     let names = get_configured_packages(config);
     let needs_reinstall = [];
@@ -306,10 +313,29 @@ fn update(config: dictionary, forced_names: list) {
                     log(f"|-- Up to date.", colors::Tfc.Green + colors::Te.Bold);
                     print(colors::Te.Reset);
                 } else if local_commit == base_commit {
-                    log(f"|<- Behind, pulling changes...", colors::Tfc.Yellow);
-                    $f"git pull";
-                    log("Done", colors::Tfc.Green);
-                    needs_reinstall += [strip];
+                    $f"git diff {local_commit} {remote_commit}" |> let diff_output;
+                    log(f"============= Diff =============", colors::Tfc.Yellow);
+                    println(diff_output);
+                    log(f"=========== End Diff ===========", colors::Tfc.Yellow);
+                    let skip = false;
+                    while true {
+                        if (FLAGS `& Flag_Type.Yes) != 0 { break; }
+                        let inp = REPL_input("Pull changes? [Y/n]: ");
+                        if len(inp) == 0 || inp == "yes" || inp == "Yes" || inp == "y" || inp == "Y" {
+                            break;
+                        } else if inp == "no" || inp == "No" || inp == "n" || inp == "N" {
+                            skip = true;
+                            break;
+                        } else {
+                            println(f"Unknown input: `{inp}`");
+                        }
+                    }
+                    if !skip {
+                        log(f"|<- Behind, pulling changes...", colors::Tfc.Yellow);
+                        $f"git pull";
+                        log("Done", colors::Tfc.Green);
+                        needs_reinstall += [strip];
+                    }
                 } else if remote_commit == base_commit {
                     log(f"|-> Ahead of remote, either restore changes or push.", colors::Tfc.Yellow);
                     println(f"    {f}");
@@ -334,7 +360,7 @@ fn show_cmds(config: dictionary, name: str) {
     }
 }
 
-@pub fn thpm_main() {
+@pub @world fn thpm_main() {
     $format("touch ", Config.Path);
     let config = toml::parse(Config.Path);
 
@@ -346,7 +372,18 @@ fn show_cmds(config: dictionary, name: str) {
 
     if len(argv()) < 2 { usage(); }
 
-    with A = argv()[1:]
+    let args = argv()[1:];
+    with i = 0
+    in while i < len(args) {
+        if args[i] == "-y" {
+            FLAGS `|= Flag_Type.Yes;
+            args.pop(i);
+        } else {
+            i += 1;
+        }
+    }
+
+    with A = args
     in if A[0] == "h" || A[0] == "help" {
         usage();
     } else if A[0] == "n" || A[0] == "new" {
