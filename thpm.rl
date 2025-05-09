@@ -9,9 +9,12 @@ import "std/parsers/basic-lexer.rl"; as lexer
 import "std/datatypes/char.rl";
 import "std/colors.rl"; as colors
 
+set_flag("-x");
+
 enum Config {
     Path = format(env("HOME"), "/.thpm"),
     Persist_Name = "__thpm__old_pkgs",
+    Tmp_Pkg_Name = "__thpm_tmp_pkg",
 }
 
 fn log(msg, c) {
@@ -52,8 +55,8 @@ fn create_empty_config(install_paths, package_paths) {
 }
 
 fn init() {
-    let ip = input("Enter installation paths in list format i.e., [\"/usr/local/bin\", \"/my/other/path\"]: ");
-    let pp = input("Enter package paths in list format i.e., [/usr/local/bin]: ");
+    let ip = REPL_input("Enter installation paths in list format i.e., [\"/usr/local/bin\", \"/my/other/path\"]: ");
+    let pp = REPL_input("Enter package paths in list format i.e., [/usr/local/bin]: ");
     let install_paths = parse_list_syntax(ip);
     let package_paths = parse_list_syntax(pp);
     return (install_paths, package_paths);
@@ -103,11 +106,19 @@ fn uninstall_package(config: dictionary, name: str) {
     cd(cwd);
 }
 
+fn clone_pkg(config, name) {
+    $format(parse_list_syntax(str(config[name].unwrap()["clone"].unwrap()))[0], " ./", Config.Tmp_Pkg_Name);
+    let install_path = config["thpm_config"].unwrap()["package_paths"].unwrap()[0];
+    let name_actual = config[name].unwrap()["name"].unwrap();
+    $format("mv ./", Config.Tmp_Pkg_Name, f" {install_path}/{name_actual}");
+    return f"{install_path}/{name_actual}";
+}
+
 fn execute_package(config: dictionary, name: str) {
     let path = search_package_paths(config, name);
 
     if !path {
-        panic(f"could not find package: `{name}`");
+        path = some(clone_pkg(config, name));
     }
 
     log(f"Installing {name}", colors::Tfc.Green);
@@ -143,14 +154,16 @@ fn execute_package(config: dictionary, name: str) {
 }
 
 fn new(@ref config: dictionary) {
-    let name, build, install, uninstall = (
-        input("Enter package name (must match the directory name): "),
-        input("Enter build commands in a list syntax i.e., [\"cd build\", \"make -j12\"]: "),
-        input("Enter install commands in a list syntax i.e., [\"cd build\", \"sudo make install\"]: "),
-        input("Enter uninstall commands in a list syntax i.e., [\"cd build\", \"sudo make uninstall\"]: "),
+    let clone, name, build, install, uninstall = (
+        REPL_input("Enter the clone command: "),
+        REPL_input("Enter package name (must match the directory name): "),
+        REPL_input("Enter build commands in a list syntax i.e., [\"cd build\", \"make -j12\"]: "),
+        REPL_input("Enter install commands in a list syntax i.e., [\"cd build\", \"sudo make install\"]: "),
+        REPL_input("Enter uninstall commands in a list syntax i.e., [\"cd build\", \"sudo make uninstall\"]: "),
     );
 
     config.insert(name, {
+        "clone": clone,
         "name": name,
         "install": install,
         "build": build,
