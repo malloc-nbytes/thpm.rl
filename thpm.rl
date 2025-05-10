@@ -2,6 +2,9 @@
 
 module ThPm
 
+# TODO:
+#   Move 'installed' field to separate file
+
 import "std/io.rl"; as io
 import "std/system.rl"; as sys
 import "std/parsers/toml.rl"; as toml
