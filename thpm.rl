@@ -8,8 +8,9 @@ import "std/parsers/toml.rl"; as toml
 import "std/parsers/basic-lexer.rl"; as lexer
 import "std/datatypes/char.rl";
 import "std/colors.rl"; as colors
+import "std/time.rl"; as time
 
-set_flag("-x");
+set_flag("-S");
 
 enum Flag_Type {
     None = 1 << 0,
@@ -26,6 +27,10 @@ let FLAGS = 0x00;
 
 fn log(msg, c) {
     println(c, msg, colors::Te.Reset);
+}
+
+fn log2(msg, c) {
+    println(c + colors::Te.Bold, f"*** {msg}", colors::Te.Reset);
 }
 
 fn parse_list_syntax(line: str): list {
@@ -87,14 +92,12 @@ fn search_package_paths(config: dictionary, name: str): option {
     return path_proper;
 }
 
-fn uninstall_package(config: dictionary, name: str) {
+fn uninstall_package(@ref config: dictionary, name: str) {
     let path = search_package_paths(config, name);
 
     if !path {
         panic(f"could not find package: `{name}`");
     }
-
-    log(f"Uninstalling {name}", colors::Tfc.Yellow);
 
     let uninstall = (parse_list_syntax(str(config[name].unwrap()["uninstall"].unwrap())));
 
@@ -111,6 +114,8 @@ fn uninstall_package(config: dictionary, name: str) {
         }
     });
     cd(cwd);
+
+    config[name].unwrap().insert("installed", "false");
 }
 
 fn clone_pkg(config, name) {
@@ -121,14 +126,12 @@ fn clone_pkg(config, name) {
     return f"{install_path}/{name_actual}";
 }
 
-fn execute_package(config: dictionary, name: str) {
+fn execute_package(@ref config: dictionary, name: str) {
     let path = search_package_paths(config, name);
 
     if !path {
         path = some(clone_pkg(config, name));
     }
-
-    log(f"Installing {name}", colors::Tfc.Green);
 
     let build, install = (
         parse_list_syntax(str(config[name].unwrap()["build"].unwrap())),
@@ -158,6 +161,8 @@ fn execute_package(config: dictionary, name: str) {
         }
     });
     cd(cwd);
+
+    config[name].unwrap().insert("installed", "true");
 }
 
 fn new(@ref config: dictionary) {
@@ -186,7 +191,7 @@ fn usage() {
     println("  h, help                - show this message");
     println("  n, new                 - create a new package entry");
     println("  l, ls                  - see installed packages");
-    println("  i, install <name(s)>   - install a package");
+    println("  i, install <name...>   - install a package");
     println("  u, update [name...]    - update package(s) or leave blank for all");
     println("  c, cmd <name...>       - view commands for package(s)");
     println("     uninstall <name...> - uninstall package(s)");
@@ -232,61 +237,20 @@ fn str_match_ci(names, name) {
 
 fn show_installed_packages(config: dictionary, silent: bool): int {
     let names = get_configured_packages(config);
-    let configured, installed, ciinstalled, unknown = (
-        [], [], [], []
-    );
-
-    foreach name in names {
-        configured += [name];
-    }
-
-    let num = 0;
-    foreach path in config["thpm_config"].unwrap()["install_paths"].unwrap() {
-        foreach p in sys::ls(path) {
-            with strip = io::strip_path(p)
-            in if names.contains(strip) {
-                installed += [(path, strip)];
-                num += 1;
-            } else {
-                let lowercase = names.map(|s| {
-                    let buf = "";
-                    foreach c in s { buf += Char::tolower(c); }
-                    return buf;
-                });
-
-                # Check for case insensitive.
-                if lowercase.contains(strip) {
-                    ciinstalled += [(path, strip)];
-                    num += 1;
-                } else {
-                    unknown += [(path, strip)];
-                }
-            }
+    let installed = [];
+    foreach k, v in config {
+        if k == "thpm_config" { continue; }
+        if v["installed"].unwrap() == "true" {
+            installed += [k];
+            if !silent { log(f"<*> {k}", colors::Tfc.Green); }
+        } else {
+            if !silent { log(f"< > {k}", colors::Tfc.Yellow); }
         }
     }
-
-    if !silent {
-        foreach c in configured {
-            log(f"Configured: {c}", colors::Tfc.Blue);
-        }
-        foreach i in installed {
-            with path = i[0], strip = i[1]
-            in log(f"<*> Installed: ({path}) {strip}", colors::Tfc.Green);
-        }
-        foreach i in ciinstalled {
-            with path = i[0], strip = i[1]
-            in log(f"<*> Installed: ({path}) {strip} (case insensitive)", colors::Tfc.Green);
-        }
-        foreach u in unknown {
-            with path = u[0], strip = u[1]
-            in log(f"<?> Unknown: ({path}) {strip}", colors::Tfc.Yellow);
-        }
-        log(f"{num} known installed packages", colors::Tfc.Green);
-    }
-    return num;
+    return len(installed);
 }
 
-@world fn update(config: dictionary, forced_names: list) {
+@world fn update(@ref config: dictionary, forced_names: list) {
     let paths = config["thpm_config"].unwrap()["package_paths"].unwrap();
     let names = get_configured_packages(config);
     let needs_reinstall = [];
@@ -390,8 +354,11 @@ fn show_cmds(config: dictionary, name: str) {
         new(config);
     } else if A[0] == "i" || A[0] == "install" {
         if len(A) < 2 { panic("install takes a name(s)"); }
-        foreach name in A[1:] {
-            execute_package(config, name);
+        with parts = A[1:]
+        in for i in 0 to len(parts) {
+            log2(format("Installing ", parts[i], " (", i+1, " of ", len(parts), ")"), colors::Tfc.Green);
+            sleep(time::ONE_SECOND);
+            execute_package(config, parts[i]);
         }
     } else if A[0] == "l" || A[0] == "ls" {
         let _ = show_installed_packages(config, false);
@@ -400,11 +367,21 @@ fn show_cmds(config: dictionary, name: str) {
         else { update(config, []); }
     } else if A[0] == "uninstall" {
         if len(A) < 2 { panic("uninstall takes a name(s)"); }
-        foreach name in A[1:] {
-            uninstall_package(config, name);
+        print(colors::Te.Bold + colors::Tfc.Red, "Uninstalling ", A[1:], " in: ");
+        (1..=5).rev().foreach(|i| {
+            print(i, ' ');
+            flush();
+            sleep(time::ONE_SECOND);
+        });
+        println(colors::Te.Reset);
+        with parts = A[1:]
+        in for i in 0 to len(parts) {
+            log2(format("Uninstalling ", parts[i], " (", i+1, " of ", len(parts), ")"), colors::Tfc.Green);
+            sleep(time::ONE_SECOND);
+            uninstall_package(config, parts[i]);
         }
     } else if A[0] == "c" || A[0] == "cmd" {
-        if len(A) < 2 { panic("uninstall takes a name(s)"); }
+        if len(A) < 2 { panic("cmd takes a name(s)"); }
         foreach name in A[1:] {
             show_cmds(config, name);
         }
