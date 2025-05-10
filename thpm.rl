@@ -320,8 +320,10 @@ fn show_installed_packages(config: dictionary, silent: bool): int {
         }
     }
 
-    foreach name in needs_reinstall {
-        execute_package(config, name);
+    for i in 0 to len(needs_reinstall) {
+        log2(format("Installing ", needs_reinstall[i], " (", i+1, " of ", len(needs_reinstall), ")"), colors::Tfc.Green);
+        sleep(time::ONE_SECOND);
+        execute_package(config, needs_reinstall[i]);
     }
 }
 
