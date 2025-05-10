@@ -57,6 +57,14 @@ fn parse_list_syntax(line: str): list {
     return items;
 }
 
+fn name_exists_in_config(config, name) {
+    foreach k, v in config {
+        if k == "thpm_config" { continue; }
+        if k == name { return true; }
+    }
+    return false;
+}
+
 fn create_empty_config(install_paths, package_paths) {
     print("opening: ", Config.Path);
     let f = open(Config.Path, "w");
@@ -179,7 +187,8 @@ fn new(@ref config: dictionary) {
         "name": name,
         "install": install,
         "build": build,
-        "uninstall": uninstall
+        "uninstall": uninstall,
+        "installed": "false"
     });
 
     log(f"Added package {name}", colors::Tfc.Green);
@@ -405,4 +414,3 @@ if !persist_lookup(Config.Persist_Name) {
 }
 
 thpm_main();
-
