@@ -4,3 +4,6 @@ github = "github.com/malloc-nbytes/thpm"
 
 [config]
 prefix = "thpm"
+
+[deps]
+rltimer = "https://github.com/malloc-nbytes/earl-module-timer.git"
