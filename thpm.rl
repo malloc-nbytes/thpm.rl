@@ -35,7 +35,7 @@ fn log2(msg, c) {
 }
 
 fn get_install_paths(config): list {
-    return config["thpm_config"].unwrap()["install_paths"].unwrap();
+    return parse_list_syntax(str(config["thpm_config"].unwrap()["install_paths"].unwrap()));
 }
 
 fn get_size_of_installed_pkg(config, name) {
@@ -101,7 +101,7 @@ fn init() {
 }
 
 fn search_package_paths(config: dictionary, name: str): option {
-    let paths = config["thpm_config"].unwrap()["package_paths"].unwrap();
+    let paths = parse_list_syntax(str(config["thpm_config"].unwrap()["package_paths"].unwrap()));
     let path_proper = none;
 
     foreach path in paths {
@@ -308,7 +308,7 @@ fn show_installed_packages(config: dictionary, silent: bool): int {
 }
 
 @world fn update(@ref config: dictionary, forced_names: list) {
-    let paths = config["thpm_config"].unwrap()["package_paths"].unwrap();
+    let paths = parse_list_syntax(str(config["thpm_config"].unwrap()["package_paths"].unwrap()));
     let names = get_configured_packages(config);
     let needs_reinstall = [];
 
