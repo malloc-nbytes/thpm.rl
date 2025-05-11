@@ -355,7 +355,7 @@ fn edit_installs(@ref config) {
     log("each package. This step is usefull for if you import", colors::Tfc.Green);
     log("your .thpm file from another machine where the `installed`", colors::Tfc.Green);
     log("flag may not be the same as this machine.", colors::Tfc.Green);
-    log("Fields with `*` are marked as installed, and those that.", colors::Tfc.Green);
+    log("Fields with `*` are marked as installed, and those that", colors::Tfc.Green);
     log("do not have it are marked as uninstalled.", colors::Tfc.Green);
 
     while true {
