@@ -2,9 +2,6 @@
 
 module ThPm
 
-# TODO:
-#   Move 'installed' field to separate file
-
 import "std/io.rl"; as io
 import "std/system.rl"; as sys
 import "std/parsers/toml.rl"; as toml
@@ -18,6 +15,7 @@ set_flag("-S");
 enum Flag_Type {
     None = 1 << 0,
     Yes = 1 << 1,
+    Verbose = 1 << 2,
 }
 
 enum Config {
@@ -38,6 +36,19 @@ fn log2(msg, c) {
 
 fn get_install_paths(config): list {
     return config["thpm_config"].unwrap()["install_paths"].unwrap();
+}
+
+fn get_size_of_installed_pkg(config, name) {
+    with paths = get_install_paths(config)
+    in foreach path in paths {
+        foreach f in sys::ls(path) {
+            if str_match_ci([io::strip_path(f)], name) {
+                $f"du -k {f} | cut -f1" |> let size;
+                return some((size, f));
+            }
+        }
+    }
+    return none;
 }
 
 fn parse_list_syntax(line: str): list {
@@ -141,48 +152,77 @@ fn clone_pkg(config, name) {
     return f"{install_path}/{name_actual}";
 }
 
-fn execute_package(@ref config: dictionary, name: str) {
-    let path = search_package_paths(config, name);
+fn execute_package(@ref config: dictionary, names: list) {
+    let failed = [];
+    with i = 0
+    in foreach name in names {
+        if !name_exists_in_config(config, name) {
+            log(f"Package `{name}` does not exist", colors::Tfc.Red);
+            failed += [name];
+            continue;
+        }
 
-    if !path {
-        path = some(clone_pkg(config, name));
+        with msg = case config[name].unwrap()["installed"].unwrap() == "true" of {
+            true = "Reinstalling";
+            _ = "Installing";
+        }
+        in log2(format(msg, ' ', names[i], " (", i+1, " of ", len(names), ")"), colors::Tfc.Green);
+        sleep(time::ONE_SECOND);
+
+        let path = search_package_paths(config, name);
+
+        if !path {
+            path = some(clone_pkg(config, name));
+        }
+
+        let build, install = (
+            parse_list_syntax(str(config[name].unwrap()["build"].unwrap())),
+            parse_list_syntax(str(config[name].unwrap()["install"].unwrap())),
+        );
+
+        $"pwd" |> let cwd;
+
+        cd(path.unwrap());
+        build.foreach(|b| {
+                with parts = b.split(" ").filter(!= "")
+                in if parts[0] == "cd" {
+                    assert(len(parts) == 2);
+                    cd(parts[1]);
+                } else { $b; }
+            });
+        cd(path.unwrap());
+        install.foreach(|i| {
+                with parts = i.split(" ").filter(!= "")
+                in if parts[0] == "cd" {
+                    assert(len(parts) == 2);
+                    cd(parts[1]);
+                } else { $i; }
+            });
+        cd(cwd);
+
+        config[name].unwrap().insert("installed", "true");
+
+        i += 1;
+
+        with sz = get_size_of_installed_pkg(config, name)
+        in if sz {
+            with s = sz.unwrap()[0],
+                 p = sz.unwrap()[1]
+            in log2(format("Total size of build: (", s, "KB) [", p,"]"), colors::Tfc.Green);
+        } else {
+            log2(format("Total size of build: (none)"), colors::Tfc.Green);
+        }
+        sleep(time::ONE_SECOND);
     }
 
-    let build, install = (
-        parse_list_syntax(str(config[name].unwrap()["build"].unwrap())),
-        parse_list_syntax(str(config[name].unwrap()["install"].unwrap())),
-    );
-
-    $"pwd" |> let cwd;
-
-    cd(path.unwrap());
-    build.foreach(|b| {
-        with parts = b.split(" ").filter(!= "")
-        in if parts[0] == "cd" {
-            assert(len(parts) == 2);
-            cd(parts[1]);
-        } else {
-            $b;
-        }
-    });
-    cd(path.unwrap());
-    install.foreach(|i| {
-        with parts = i.split(" ").filter(!= "")
-        in if parts[0] == "cd" {
-            assert(len(parts) == 2);
-            cd(parts[1]);
-        } else {
-            $i;
-        }
-    });
-    cd(cwd);
-
-    config[name].unwrap().insert("installed", "true");
+    foreach fail in failed {
+        log(f"Failed to install package `{fail}`", colors::Tfc.Red);
+    }
 }
 
 fn new(@ref config: dictionary) {
     let clone, name, build, install, uninstall = (
-        REPL_input("Enter the clone command: "),
+        REPL_input("Enter the clone command i.e., [\"git clone https://www.github.com/user/repo.git\"]: "),
         REPL_input("Enter package name (must match the directory name): "),
         REPL_input("Enter build commands in a list syntax i.e., [\"cd build\", \"make -j12\"]: "),
         REPL_input("Enter install commands in a list syntax i.e., [\"cd build\", \"sudo make install\"]: "),
@@ -333,11 +373,7 @@ fn show_installed_packages(config: dictionary, silent: bool): int {
         }
     }
 
-    for i in 0 to len(needs_reinstall) {
-        log2(format("Installing ", needs_reinstall[i], " (", i+1, " of ", len(needs_reinstall), ")"), colors::Tfc.Green);
-        sleep(time::ONE_SECOND);
-        execute_package(config, needs_reinstall[i]);
-    }
+    execute_package(config, needs_reinstall);
 }
 
 fn show_cmds(config: dictionary, name: str) {
@@ -419,6 +455,10 @@ fn edit_installs(@ref config) {
         if args[i] == "-y" {
             FLAGS `|= Flag_Type.Yes;
             args.pop(i);
+        } else if args[i] == "-v" {
+            FLAGS `|= Flag_Type.Verbose;
+            args.pop(i);
+            set_flag("-x");
         } else {
             i += 1;
         }
@@ -431,12 +471,7 @@ fn edit_installs(@ref config) {
         new(config);
     } else if A[0] == "i" || A[0] == "install" {
         if len(A) < 2 { panic("install takes a name(s)"); }
-        with parts = A[1:]
-        in for i in 0 to len(parts) {
-            log2(format("Installing ", parts[i], " (", i+1, " of ", len(parts), ")"), colors::Tfc.Green);
-            sleep(time::ONE_SECOND);
-            execute_package(config, parts[i]);
-        }
+        execute_package(config, A[1:]);
     } else if A[0] == "l" || A[0] == "ls" {
         let _ = show_installed_packages(config, false);
     } else if A[0] == "u" || A[0] == "update" {
