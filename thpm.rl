@@ -36,6 +36,10 @@ fn log2(msg, c) {
     println(c + colors::Te.Bold, f"*** {msg}", colors::Te.Reset);
 }
 
+fn get_install_paths(config): list {
+    return config["thpm_config"].unwrap()["install_paths"].unwrap();
+}
+
 fn parse_list_syntax(line: str): list {
     let items = [];
     let lex = lexer::T(line);
@@ -207,6 +211,7 @@ fn usage() {
     println("  u, update [name...]    - update package(s) or leave blank for all");
     println("  c, cmd <name...>       - view commands for package(s)");
     println("     uninstall <name...> - uninstall package(s)");
+    println("     edit-installs       - manually edit the `installed` flag for packages");
     exit(0);
 }
 
@@ -338,6 +343,59 @@ fn show_cmds(config: dictionary, name: str) {
     }
 }
 
+fn str_is_num(s) {
+    foreach c in s {
+        if !Char::isnum(c) { return false; }
+    }
+    return true;
+}
+
+fn edit_installs(@ref config) {
+    log("You can manually edit the `installed` flag for", colors::Tfc.Green);
+    log("each package. This step is usefull for if you import", colors::Tfc.Green);
+    log("your .thpm file from another machine where the `installed`", colors::Tfc.Green);
+    log("flag may not be the same as this machine.", colors::Tfc.Green);
+    log("Fields with `*` are marked as installed, and those that.", colors::Tfc.Green);
+    log("do not have it are marked as uninstalled.", colors::Tfc.Green);
+
+    while true {
+        let names = [];
+        with idx = 0
+        in foreach k, v in config {
+            if k == "thpm_config" { continue; }
+            print("[ ", len(names), " ] ");
+            if v["installed"].unwrap() == "true" { print("<*>"); }
+            else { print("< >"); }
+            println(' ', v["name"].unwrap());
+            idx += 1;
+            names += [v["name"].unwrap()];
+        }
+
+        log("1.) Enter an index to flip the `installed` flag", colors::Tfc.Yellow);
+        log("2.) Enter `*` to flip all of them", colors::Tfc.Yellow);
+        log("3.) Leave blank to continue", colors::Tfc.Yellow);
+        let inp = REPL_input("edit: ");
+        if inp == ""             { break; }
+        if inp == "*" {
+            foreach @ref k, v in config {
+                if k == "thpm_config" { continue; }
+                v.insert("installed", str(!bool(v["installed"].unwrap())));
+            }
+        } else {
+            if !str_is_num(inp) {
+                log(f"Input: {inp} is not a number", colors::Tfc.Red);
+            }
+            else if int(inp) > len(names) {
+                log(f"Input: {inp} not a valid index", colors::Tfc.Red);
+            } else {
+                let idx = int(inp);
+                config[names[idx]].unwrap().insert("installed", str(!bool(config[names[idx]].unwrap()["installed"].unwrap())));
+                log(format("Updated ", config[names[idx]].unwrap()["name"].unwrap()), colors::Tfc.Yellow);
+            }
+        }
+    }
+}
+
 @pub @world fn thpm_main() {
     $format("touch ", Config.Path);
     let config = toml::parse(Config.Path);
@@ -399,6 +457,8 @@ fn show_cmds(config: dictionary, name: str) {
         foreach name in A[1:] {
             show_cmds(config, name);
         }
+    } else if A[0] == "edit-installs" {
+        edit_installs(config);
     } else {
         usage();
     }
