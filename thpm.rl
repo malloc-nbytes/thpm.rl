@@ -286,14 +286,17 @@ fn show_installed_packages(config: dictionary, silent: bool): int {
                 $f"git rev-parse origin/{current_branch}"                   |> let remote_commit;
                 $f"git merge-base {current_branch} origin/{current_branch}" |> let base_commit;
 
-                log(f"| local hash: {local_commit}", colors::Tfc.White);
-                log(f"| remote hash: {remote_commit}", colors::Tfc.White);
-                log(f"| base hash: {base_commit}", colors::Tfc.White);
+                let show_hash = |_| {
+                    log(f"| local hash: {local_commit}", colors::Tfc.White);
+                    log(f"| remote hash: {remote_commit}", colors::Tfc.White);
+                    log(f"| base hash: {base_commit}", colors::Tfc.White);
+                };
 
                 if local_commit == remote_commit {
                     log(f"|-- Up to date.", colors::Tfc.Green + colors::Te.Bold);
                     print(colors::Te.Reset);
                 } else if local_commit == base_commit {
+                    show_hash();
                     $f"git diff {local_commit} {remote_commit}" |> let diff_output;
                     log(f"============= Diff =============", colors::Tfc.Yellow);
                     println(diff_output);
@@ -318,9 +321,11 @@ fn show_installed_packages(config: dictionary, silent: bool): int {
                         needs_reinstall += [strip];
                     }
                 } else if remote_commit == base_commit {
+                    show_hash();
                     log(f"|-> Ahead of remote, either restore changes or push.", colors::Tfc.Yellow);
                     println(f"    {f}");
                 } else {
+                    show_hash();
                     log(f"|-x Diverged from the remote. Manual intervention needed...", colors::Tfc.Red);
                     println(f"    {f}");
                 }
