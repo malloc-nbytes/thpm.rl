@@ -287,9 +287,9 @@ fn show_installed_packages(config: dictionary, silent: bool): int {
                 $f"git merge-base {current_branch} origin/{current_branch}" |> let base_commit;
 
                 let show_hash = |_| {
-                    log(f"| local hash: {local_commit}", colors::Tfc.White);
-                    log(f"| remote hash: {remote_commit}", colors::Tfc.White);
-                    log(f"| base hash: {base_commit}", colors::Tfc.White);
+                    log(f"| local hash: {local_commit}", colors::Tfc.Yellow);
+                    log(f"| remote hash: {remote_commit}", colors::Tfc.Yellow);
+                    log(f"| base hash: {base_commit}", colors::Tfc.Yellow);
                 };
 
                 if local_commit == remote_commit {
