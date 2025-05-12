@@ -143,7 +143,7 @@ fn uninstall_package(@ref config: dictionary, name: str) {
 
 fn clone_pkg(config, name) {
     $format(parse_list_syntax(str(config[name].unwrap()["clone"].unwrap()))[0], " ./", Config.Tmp_Pkg_Name);
-    let install_path = config["thpm_config"].unwrap()["package_paths"].unwrap()[0];
+    let install_path = parse_list_syntax(str(config["thpm_config"].unwrap()["package_paths"].unwrap()))[0];
     let name_actual = config[name].unwrap()["name"].unwrap();
     $format("mv ./", Config.Tmp_Pkg_Name, f" {install_path}/{name_actual}");
     return f"{install_path}/{name_actual}";
@@ -170,6 +170,7 @@ fn execute_package(@ref config: dictionary, names: list) {
 
         if !path {
             path = some(clone_pkg(config, name));
+            println("PATH ::: ", path);
         }
 
         let build, install = (
@@ -178,6 +179,8 @@ fn execute_package(@ref config: dictionary, names: list) {
         );
 
         $"pwd" |> let cwd;
+
+        println("CWD: ", cwd);
 
         cd(path.unwrap());
         build.foreach(|b| {
