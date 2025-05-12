@@ -84,7 +84,9 @@ fn name_exists_in_config(config, name) {
 }
 
 fn create_empty_config(install_paths, package_paths) {
-    print("opening: ", Config.Path);
+    println(type(install_paths));
+    println(package_paths);
+    exit(0);
     let f = open(Config.Path, "w");
     f.write("[thpm_config]\n");
     f.write(format("install_paths = ", install_paths, "\n"));
@@ -95,9 +97,7 @@ fn create_empty_config(install_paths, package_paths) {
 fn init() {
     let ip = REPL_input("Enter installation paths in list format i.e., [\"/usr/local/bin\", \"/my/other/path\"]: ");
     let pp = REPL_input("Enter package paths in list format i.e., [/usr/local/bin]: ");
-    let install_paths = parse_list_syntax(ip);
-    let package_paths = parse_list_syntax(pp);
-    return (install_paths, package_paths);
+    return (ip, pp);
 }
 
 fn search_package_paths(config: dictionary, name: str): option {
