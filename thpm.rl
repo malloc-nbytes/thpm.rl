@@ -84,9 +84,6 @@ fn name_exists_in_config(config, name) {
 }
 
 fn create_empty_config(install_paths, package_paths) {
-    println(type(install_paths));
-    println(package_paths);
-    exit(0);
     let f = open(Config.Path, "w");
     f.write("[thpm_config]\n");
     f.write(format("install_paths = ", install_paths, "\n"));
