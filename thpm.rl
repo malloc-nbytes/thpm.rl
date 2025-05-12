@@ -180,8 +180,6 @@ fn execute_package(@ref config: dictionary, names: list) {
 
         $"pwd" |> let cwd;
 
-        println("CWD: ", cwd);
-
         cd(path.unwrap());
         build.foreach(|b| {
                 with parts = b.split(" ").filter(!= "")
