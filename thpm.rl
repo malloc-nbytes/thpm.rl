@@ -84,7 +84,6 @@ fn name_exists_in_config(config, name) {
 }
 
 fn create_empty_config(install_paths, package_paths) {
-    print("opening: ", Config.Path);
     let f = open(Config.Path, "w");
     f.write("[thpm_config]\n");
     f.write(format("install_paths = ", install_paths, "\n"));
@@ -95,9 +94,7 @@ fn create_empty_config(install_paths, package_paths) {
 fn init() {
     let ip = REPL_input("Enter installation paths in list format i.e., [\"/usr/local/bin\", \"/my/other/path\"]: ");
     let pp = REPL_input("Enter package paths in list format i.e., [/usr/local/bin]: ");
-    let install_paths = parse_list_syntax(ip);
-    let package_paths = parse_list_syntax(pp);
-    return (install_paths, package_paths);
+    return (ip, pp);
 }
 
 fn search_package_paths(config: dictionary, name: str): option {
@@ -146,7 +143,7 @@ fn uninstall_package(@ref config: dictionary, name: str) {
 
 fn clone_pkg(config, name) {
     $format(parse_list_syntax(str(config[name].unwrap()["clone"].unwrap()))[0], " ./", Config.Tmp_Pkg_Name);
-    let install_path = config["thpm_config"].unwrap()["package_paths"].unwrap()[0];
+    let install_path = parse_list_syntax(str(config["thpm_config"].unwrap()["package_paths"].unwrap()))[0];
     let name_actual = config[name].unwrap()["name"].unwrap();
     $format("mv ./", Config.Tmp_Pkg_Name, f" {install_path}/{name_actual}");
     return f"{install_path}/{name_actual}";
@@ -173,6 +170,7 @@ fn execute_package(@ref config: dictionary, names: list) {
 
         if !path {
             path = some(clone_pkg(config, name));
+            println("PATH ::: ", path);
         }
 
         let build, install = (
