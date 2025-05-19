@@ -1,6 +1,6 @@
 [owner]
 name = "malloc-nbytes"
-github = "github.com/malloc-nbytes/thpm"
+github = "github.com/malloc-nbytes/thpm.rl"
 
 [config]
 prefix = "thpm"

@@ -1,0 +1,27 @@
+* thpm.rl
+
+** Introduction
+
+*Note*: This script is currently in development and may have
+bugs and/or not work properly. Use this *at your own risk*!
+
+=thpm.rl= is a script that manages packages/programs *not* installed
+through other package managers.
+
+** Dependencies
+
+- [[https://github.com/malloc-nbytes/EARL/tree/main][EARL]]
+
+** Features
+
+- Add rules to download, build, install, remove, and reinstall each package
+  that is initialized.
+- Ability to re-download the code if it is deleted.
+- Able to update all installed packages.
+
+** Other Notes
+
+- For now, all packages that are installed must be hosted by =git=.
+- The ability to remove initialized packages are not yet supported.
+- If you want to manually edit package configurations, you can
+  edit the file =/home/<user>/.thpm=.
